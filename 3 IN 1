@@ -1,6 +1,6 @@
 -- ==========================================
--- WSEEM ULTIMATE HUB | BLOX FRUITS (AUG 2026)
--- Complete Overhaul & High Performance Fix
+-- WSEEM ULTIMATE HUB | FULL V4 & PVP ENGINE (2026)
+-- Integration of V2/V3/V4 Systems & Fixed Features
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -8,7 +8,6 @@ local CoreGui = game:GetService("CoreGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 local VirtualUser = game:GetService("VirtualUser")
 local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
@@ -16,7 +15,6 @@ local Lighting = game:GetService("Lighting")
 
 local player = Players.LocalPlayer
 
--- التنظيف المباشر للجلسات القديمة
 if getgenv().WseemHubCleanUp then
     getgenv().WseemHubCleanUp()
 end
@@ -24,10 +22,10 @@ end
 local Connections = {}
 
 -- ==========================================
--- 1. المتغيرات والإعدادات المحدثة 2026
+-- 1. الإعدادات الشاملة (Config)
 -- ==========================================
 _G.Config = {
-    -- Main & Farm Settings
+    -- Main & Farm
     AutoFarm = false,
     FastAttack = true,
     AutoHaki = true,
@@ -35,154 +33,116 @@ _G.Config = {
     SelectWeapon = "Melee",
     AttackDelay = 0.005,
 
-    -- Material Settings
-    AutoMaterial = false,
-    MaterialMode = "Original Mobs",
-    SelectMaterial = "Bones",
-    SelectedMaterialSea = 3,
+    -- Custom Movement Speed Control
+    SpeedEnabled = false,
+    CustomSpeed = 250, -- يمكنك زيادة أو تقليل السرعة هنا
 
-    -- PVP & Combo
+    -- PVP & Combo System
     TargetPVP = false,
     SelectedPlayer = "",
     ComboSequence = {"Melee", "Blox Fruit", "Sword", "Gun"},
-    ComboWeaponEnabled = {
-        ["Melee"] = true,
-        ["Sword"] = true,
-        ["Blox Fruit"] = true,
-        ["Gun"] = true
-    },
     ComboSkills = {
-        ["Melee"] = {Z = true, X = true, C = true, V = true, F = false},
-        ["Sword"] = {Z = true, X = true, C = false, V = false, F = false},
-        ["Blox Fruit"] = {Z = true, X = true, C = true, V = true, F = false},
-        ["Gun"] = {Z = true, X = true, C = false, V = false, F = false}
+        ["Melee"] = {Z = true, X = true, C = true, V = true},
+        ["Sword"] = {Z = true, X = true},
+        ["Blox Fruit"] = {Z = true, X = true, C = true, V = true},
+        ["Gun"] = {Z = true, X = true}
     },
 
-    -- Teleport & Sea Settings
-    SelectedIslandSea = 3,
-    SelectIsland = "Tiki Outpost",
-    IsTeleporting = false,
-
-    -- Speed & Health ESP
-    SpeedEnabled = false,
-    SpeedMultiplier = 2,
-    HealthBarEnabled = false,
-    CurrentHealthStyle = 1,
-
-    -- Info Radar & V2/V3/V4
+    -- V2 / V3 / V4 Race Settings
     AutoFullMoonHop = false,
     AutoMirageIsland = false,
+    AutoV4Trial = false,
+    AutoV4PvP = false,
+
     ESP_FlowerRed = false,
     ESP_FlowerBlue = false,
     ESP_FlowerYellow = false,
     ESP_Alchemist = false,
+    ESP_EliteHunter = true,
 
-    -- Extra Farming
+    AutoV3Mink = false,
+    AutoV3Fish = false,
+    AutoV3Human = false,
+    AutoV3Sky = false,
+    AutoV3Cyborg = false,
+    AutoV3Ghoul = false,
+
+    -- Teleports
+    TeleportToTreeBase = false,
+    TeleportToTreeSummit = false,
+    TeleportToCastle = false,
+    TeleportToTemple = false,
+
+    -- Health & Chest Farm
+    HealthBarEnabled = false,
     AutoChestFarm = false,
-    AutoEliteHunter = false,
-    AutoCocoaFarm = false,
-    AutoKill500NPCs = false,
-    AutoSeaBeastHunter = false,
+    ChestSpeed = 160, -- حركة بطيئة وآمنة للصناديق
     FruitESP = false,
     AutoGrab = false,
     AntiAFK = true
 }
 
-local configFile = "WseemHubConfig2026.json"
+local currentTween = nil
 
-local function SaveConfig()
-    pcall(function()
-        if writefile then writefile(configFile, HttpService:JSONEncode(_G.Config)) end
-    end)
+-- مجلد الـ ESP
+local ESPFolder = Instance.new("Folder")
+ESPFolder.Name = "Wseem_ESP_Folder"
+if syn and syn.protect_gui then syn.protect_gui(ESPFolder) ESPFolder.Parent = CoreGui
+elseif gethui then ESPFolder.Parent = gethui()
+else ESPFolder.Parent = CoreGui end
+
+-- ==========================================
+-- 2. وظائف الحركة والانتقال السلس
+-- ==========================================
+local function StopMovement()
+    if currentTween then
+        currentTween:Cancel()
+        currentTween = nil
+    end
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        char.HumanoidRootPart.Velocity = Vector3.new(0,0,0)
+        char.HumanoidRootPart.RotVelocity = Vector3.new(0,0,0)
+    end
 end
 
-local function LoadConfig()
-    pcall(function()
-        if readfile and isfile and isfile(configFile) then
-            local decoded = HttpService:JSONDecode(readfile(configFile))
-            for k, v in pairs(decoded) do
-                if type(v) == "table" and type(_G.Config[k]) == "table" then
-                    for k2, v2 in pairs(v) do _G.Config[k][k2] = v2 end
-                else
-                    _G.Config[k] = v
-                end
+local function TweenTo(cframe, customSpeed)
+    local char = player.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    local hrp = char.HumanoidRootPart
+    local dist = (hrp.Position - cframe.Position).Magnitude
+    local moveSpeed = customSpeed or _G.Config.CustomSpeed
+
+    if currentTween then currentTween:Cancel() end
+
+    local info = TweenInfo.new(dist / moveSpeed, Enum.EasingStyle.Linear)
+    currentTween = TweenService:Create(hrp, info, {CFrame = cframe})
+    currentTween:Play()
+    return currentTween
+end
+
+-- Noclip أثناء التحرك
+table.insert(Connections, RunService.Stepped:Connect(function()
+    if currentTween and player.Character then
+        for _, part in pairs(player.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
             end
         end
-    end)
-end
-
-LoadConfig()
+    end
+end))
 
 -- ==========================================
--- 2. خريطة الجزر والمواد لـ Blox Fruits 2026
--- ==========================================
-local islandsBySea = {
-    [1] = {
-        ["Starter Island"] = Vector3.new(1095, 16, 1420),
-        ["Jungle"] = Vector3.new(-1610, 37, 148),
-        ["Pirate Village"] = Vector3.new(-1130, 4, 3850),
-        ["Desert"] = Vector3.new(1090, 6, 4360),
-        ["Middle Town"] = Vector3.new(-655, 15, 1580),
-        ["Frozen Village"] = Vector3.new(1185, 27, -1185),
-        ["Marine Fortress"] = Vector3.new(-5030, 20, 4320),
-        ["Skypiea"] = Vector3.new(-4880, 718, -2630),
-        ["Prison"] = Vector3.new(4850, 5, 740),
-        ["Colosseum"] = Vector3.new(-1430, 7, -2780),
-        ["Magma Village"] = Vector3.new(-5250, 8, 8850),
-        ["Underwater City"] = Vector3.new(3860, 5, -1925)
-    },
-    [2] = {
-        ["Cafe"] = Vector3.new(-380, 73, 300),
-        ["Green Zone"] = Vector3.new(-2300, 70, -3000),
-        ["Kingdom of Rose"] = Vector3.new(-450, 73, 1500),
-        ["Uship / Graveyard"] = Vector3.new(920, 125, 3280),
-        ["Snow Mountain"] = Vector3.new(600, 400, -5300),
-        ["Hot and Cold"] = Vector3.new(-2500, 15, -3000),
-        ["Ice Castle"] = Vector3.new(5500, 28, -6200),
-        ["Forgotten Island"] = Vector3.new(-3050, 240, -10150)
-    },
-    [3] = {
-        ["Port Town"] = Vector3.new(-2900, 15, 5300),
-        ["Hydra Island"] = Vector3.new(5700, 600, 200),
-        ["Great Tree"] = Vector3.new(2250, 20, -7200),
-        ["Floating Turtle"] = Vector3.new(-12450, 330, -7500),
-        ["Haunted Castle"] = Vector3.new(-9500, 140, 5500),
-        ["Sea of Treats"] = Vector3.new(-2000, 50, -12000),
-        ["Tiki Outpost"] = Vector3.new(-16200, 45, 500),
-        ["Submerged Island"] = Vector3.new(-13500, 200, -11000)
-    }
-}
-
-local materialsBySea = {
-    [1] = {"Leather", "Angel Wings", "Fish Tail", "Magma Ore", "Vampire Fang", "Mutant Tooth"},
-    [2] = {"Ectoplasm", "Radioactive Material", "Mystic Droplet", "Snow Trooper", "Dark Fragment"},
-    [3] = {"Bones", "Dragon Scale", "Mini Tusk", "Conjured Cocoa", "Demonic Feather", "Fool's Gold", "Dragon Tooth", "Leviathan Scale", "Electric Wing"}
-}
-
-local materialToMob = {
-    ["Leather"] = "Pirate", ["Angel Wings"] = "God's Guard", ["Fish Tail"] = "Fishman Warrior",
-    ["Magma Ore"] = "Military Soldier", ["Vampire Fang"] = "Vampire", ["Mutant Tooth"] = "Military Spy",
-    ["Ectoplasm"] = "Ship Officer", ["Radioactive Material"] = "Factory Staff", ["Mystic Droplet"] = "Water Fighter",
-    ["Bones"] = "Reborn Skeleton", ["Dragon Scale"] = "Dragon Crew Warrior", ["Mini Tusk"] = "Mythological Pirate",
-    ["Conjured Cocoa"] = "Cocoa Warrior", ["Demonic Feather"] = "Demonic Soul", ["Fool's Gold"] = "Isle Outlaw",
-    ["Dragon Tooth"] = "Isle Champion", ["Leviathan Scale"] = "Pirate", ["Electric Wing"] = "Isle Outlaw"
-}
-
--- ==========================================
--- 3. بناء الواجهة والأيقونة (WSEEM Design)
+-- 3. واجهة المستخدم الرئيسية (UI Setup)
 -- ==========================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "WseemUniversalHub2026"
 ScreenGui.ResetOnSpawn = false
-
 if syn and syn.protect_gui then syn.protect_gui(ScreenGui) ScreenGui.Parent = CoreGui
 elseif gethui then ScreenGui.Parent = gethui()
 else ScreenGui.Parent = CoreGui end
 
-local ESPFolder = Instance.new("Folder", ScreenGui)
-ESPFolder.Name = "Wseem_ESP_Folder"
-
--- أيقونة WSEEM ثابتة لا تختفي
+-- الأيقونة الثابتة
 local ToggleIcon = Instance.new("TextButton", ScreenGui)
 ToggleIcon.Name = "WseemToggleIcon"
 ToggleIcon.Size = UDim2.new(0, 65, 0, 42)
@@ -194,7 +154,6 @@ ToggleIcon.Font = Enum.Font.GothamBold
 ToggleIcon.TextSize = 11
 ToggleIcon.Active = true
 ToggleIcon.Draggable = true
-
 Instance.new("UICorner", ToggleIcon).CornerRadius = UDim.new(0, 10)
 local IconStroke = Instance.new("UIStroke", ToggleIcon)
 IconStroke.Color = Color3.fromRGB(0, 210, 255)
@@ -203,12 +162,11 @@ IconStroke.Thickness = 1.8
 -- الإطار الرئيسي
 local MainFrame = Instance.new("Frame", ScreenGui)
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 560, 0, 390)
-MainFrame.Position = UDim2.new(0.5, -280, 0.2, 0)
+MainFrame.Size = UDim2.new(0, 570, 0, 400)
+MainFrame.Position = UDim2.new(0.5, -285, 0.2, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(14, 16, 24)
 MainFrame.Active = true
 MainFrame.Draggable = true
-
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
 local MainStroke = Instance.new("UIStroke", MainFrame)
 MainStroke.Color = Color3.fromRGB(0, 170, 255)
@@ -216,7 +174,6 @@ MainStroke.Thickness = 1.5
 
 -- زر إغلاق السكربت كلياً (X)
 local CloseBtn = Instance.new("TextButton", MainFrame)
-CloseBtn.Name = "CloseBtn"
 CloseBtn.Size = UDim2.new(0, 26, 0, 26)
 CloseBtn.Position = UDim2.new(1, -32, 0, 8)
 CloseBtn.BackgroundColor3 = Color3.fromRGB(230, 50, 60)
@@ -227,44 +184,41 @@ CloseBtn.TextSize = 12
 Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
 
 CloseBtn.MouseButton1Click:Connect(function()
-    if getgenv().WseemHubCleanUp then
-        getgenv().WseemHubCleanUp()
-    end
+    if getgenv().WseemHubCleanUp then getgenv().WseemHubCleanUp() end
 end)
 
--- ضغطة الأيقونة تفعل وتخفي الواجهة فقط بدون إخفاء الأيقونة
 ToggleIcon.MouseButton1Click:Connect(function()
     MainFrame.Visible = not MainFrame.Visible
 end)
 
 -- Sidebar
 local Sidebar = Instance.new("Frame", MainFrame)
-Sidebar.Size = UDim2.new(0, 140, 1, 0)
+Sidebar.Size = UDim2.new(0, 145, 1, 0)
 Sidebar.BackgroundColor3 = Color3.fromRGB(20, 24, 34)
 Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 12)
 
 local SideLayout = Instance.new("UIListLayout", Sidebar)
-SideLayout.Padding = UDim.new(0, 5)
+SideLayout.Padding = UDim.new(0, 4)
 SideLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local TitleLabel = Instance.new("TextLabel", Sidebar)
-TitleLabel.Size = UDim2.new(1, 0, 0, 40)
-TitleLabel.Text = "⚡ WSEEM HUB"
+TitleLabel.Size = UDim2.new(1, 0, 0, 38)
+TitleLabel.Text = "⚡ ULTRA V4 HUB"
 TitleLabel.TextColor3 = Color3.fromRGB(0, 210, 255)
 TitleLabel.Font = Enum.Font.GothamBold
 TitleLabel.TextSize = 12
 TitleLabel.BackgroundTransparency = 1
 
 local ContentArea = Instance.new("Frame", MainFrame)
-ContentArea.Size = UDim2.new(1, -150, 1, -45)
-ContentArea.Position = UDim2.new(0, 145, 0, 40)
+ContentArea.Size = UDim2.new(1, -155, 1, -45)
+ContentArea.Position = UDim2.new(0, 150, 0, 40)
 ContentArea.BackgroundTransparency = 1
 
 local tabs = {}
 
 local function CreateTab(tabName)
     local TabBtn = Instance.new("TextButton", Sidebar)
-    TabBtn.Size = UDim2.new(0.92, 0, 0, 28)
+    TabBtn.Size = UDim2.new(0.92, 0, 0, 26)
     TabBtn.BackgroundColor3 = Color3.fromRGB(28, 33, 48)
     TabBtn.Text = tabName
     TabBtn.TextColor3 = Color3.fromRGB(160, 170, 190)
@@ -304,7 +258,7 @@ end
 
 local function AddToggle(parentPage, name, configVar, callback)
     local Button = Instance.new("TextButton", parentPage)
-    Button.Size = UDim2.new(0.96, 0, 0, 30)
+    Button.Size = UDim2.new(0.96, 0, 0, 28)
     Button.BackgroundColor3 = Color3.fromRGB(22, 26, 38)
     Button.Text = "  " .. name
     Button.TextColor3 = _G.Config[configVar] and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(160, 160, 170)
@@ -314,207 +268,38 @@ local function AddToggle(parentPage, name, configVar, callback)
     Instance.new("UICorner", Button).CornerRadius = UDim.new(0, 6)
 
     local Indicator = Instance.new("Frame", Button)
-    Indicator.Size = UDim2.new(0, 26, 0, 14)
-    Indicator.Position = UDim2.new(1, -32, 0.5, -7)
+    Indicator.Size = UDim2.new(0, 24, 0, 12)
+    Indicator.Position = UDim2.new(1, -30, 0.5, -6)
     Indicator.BackgroundColor3 = _G.Config[configVar] and Color3.fromRGB(0, 210, 255) or Color3.fromRGB(45, 50, 65)
     Instance.new("UICorner", Indicator).CornerRadius = UDim.new(1, 0)
 
-    local Dot = Instance.new("Frame", Indicator)
-    Dot.Size = UDim2.new(0, 8, 0, 8)
-    Dot.Position = _G.Config[configVar] and UDim2.new(1, -10, 0.5, -4) or UDim2.new(0, 2, 0.5, -4)
-    Dot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    Instance.new("UICorner", Dot).CornerRadius = UDim.new(1, 0)
-
     Button.MouseButton1Click:Connect(function()
         _G.Config[configVar] = not _G.Config[configVar]
-        SaveConfig()
         local state = _G.Config[configVar]
         Indicator.BackgroundColor3 = state and Color3.fromRGB(0, 210, 255) or Color3.fromRGB(45, 50, 65)
-        Dot.Position = state and UDim2.new(1, -10, 0.5, -4) or UDim2.new(0, 2, 0.5, -4)
         Button.TextColor3 = state and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(160, 160, 170)
+        if not state then StopMovement() end
         if callback then callback(state) end
     end)
     return Button
 end
 
-local function CreateDynamicDropdown(parentPage, title, getOptionsFunc, configVar, onSelectCallback)
-    local DropdownFrame = Instance.new("Frame", parentPage)
-    DropdownFrame.Size = UDim2.new(0.96, 0, 0, 30)
-    DropdownFrame.BackgroundColor3 = Color3.fromRGB(22, 26, 38)
-    DropdownFrame.ClipsDescendants = true
-    Instance.new("UICorner", DropdownFrame).CornerRadius = UDim.new(0, 6)
-
-    local MainBtn = Instance.new("TextButton", DropdownFrame)
-    MainBtn.Size = UDim2.new(1, 0, 0, 30)
-    MainBtn.BackgroundTransparency = 1
-    MainBtn.Text = "  " .. title .. ": " .. tostring(_G.Config[configVar]) .. "  ▼"
-    MainBtn.TextColor3 = Color3.fromRGB(0, 210, 255)
-    MainBtn.Font = Enum.Font.GothamBold
-    MainBtn.TextSize = 9
-    MainBtn.TextXAlignment = Enum.TextXAlignment.Left
-
-    local OptionsHolder = Instance.new("ScrollingFrame", DropdownFrame)
-    OptionsHolder.Position = UDim2.new(0, 4, 0, 30)
-    OptionsHolder.Size = UDim2.new(1, -8, 0, 0)
-    OptionsHolder.BackgroundTransparency = 1
-    OptionsHolder.ScrollBarThickness = 3
-    OptionsHolder.Visible = false
-    Instance.new("UIListLayout", OptionsHolder).Padding = UDim.new(0, 3)
-
-    local isOpen = false
-
-    local function RebuildOptions()
-        for _, child in pairs(OptionsHolder:GetChildren()) do
-            if child:IsA("TextButton") then child:Destroy() end
-        end
-        local currentOptions = getOptionsFunc()
-        local itemHeight = 22
-        local visibleCount = math.min(#currentOptions, 4)
-        local containerHeight = visibleCount * (itemHeight + 3)
-
-        OptionsHolder.Size = UDim2.new(1, -8, 0, containerHeight)
-        OptionsHolder.CanvasSize = UDim2.new(0, 0, 0, #currentOptions * (itemHeight + 3))
-
-        for _, opt in ipairs(currentOptions) do
-            local OptBtn = Instance.new("TextButton", OptionsHolder)
-            OptBtn.Size = UDim2.new(0.98, 0, 0, itemHeight)
-            OptBtn.BackgroundColor3 = Color3.fromRGB(32, 38, 52)
-            OptBtn.Text = tostring(opt)
-            OptBtn.TextColor3 = Color3.fromRGB(220, 220, 220)
-            OptBtn.Font = Enum.Font.GothamMedium
-            OptBtn.TextSize = 9
-            Instance.new("UICorner", OptBtn).CornerRadius = UDim.new(0, 4)
-
-            OptBtn.MouseButton1Click:Connect(function()
-                _G.Config[configVar] = opt
-                SaveConfig()
-                MainBtn.Text = "  " .. title .. ": " .. tostring(_G.Config[configVar]) .. "  ▼"
-                isOpen = false
-                OptionsHolder.Visible = false
-                DropdownFrame.Size = UDim2.new(0.96, 0, 0, 30)
-                if onSelectCallback then onSelectCallback(opt) end
-            end)
-        end
-        return containerHeight
-    end
-
-    MainBtn.MouseButton1Click:Connect(function()
-        isOpen = not isOpen
-        if isOpen then
-            local containerHeight = RebuildOptions()
-            OptionsHolder.Visible = true
-            DropdownFrame.Size = UDim2.new(0.96, 0, 0, 34 + containerHeight)
-            MainBtn.Text = "  " .. title .. ": " .. tostring(_G.Config[configVar]) .. "  ▲"
-        else
-            OptionsHolder.Visible = false
-            DropdownFrame.Size = UDim2.new(0.96, 0, 0, 30)
-            MainBtn.Text = "  " .. title .. ": " .. tostring(_G.Config[configVar]) .. "  ▼"
-        end
-    end)
-
-    return {
-        Refresh = function()
-            MainBtn.Text = "  " .. title .. ": " .. tostring(_G.Config[configVar]) .. "  ▼"
-            if isOpen then 
-                local containerHeight = RebuildOptions()
-                DropdownFrame.Size = UDim2.new(0.96, 0, 0, 34 + containerHeight)
-            end
-        end
-    }
-end
-
--- Tabs Initialization
-local FarmTab = CreateTab(" Main Farm")
-local MaterialTab = CreateTab(" Material Farm")
-local PVPTab = CreateTab(" PVP & Combo")
-local SpeedHealthTab = CreateTab(" Speed & Health")
-local RadarTab = CreateTab(" Live Radar")
-local TeleportTab = CreateTab(" Teleport")
-local FarmingTab = CreateTab(" Extra Farm")
+-- ==========================================
+-- 4. إتاحة جميع الأقسام (Tabs Creation)
+-- ==========================================
+local RadarTab = CreateTab("📊 Info Radar")
+local V2Tab = CreateTab("🌸 Race V2 ESP")
+local V3Tab = CreateTab("⚡ Race V3 Quests")
+local V4Tab = CreateTab("🌕 Race V4 Hub")
+local PVPTab = CreateTab("⚔️ PVP & Combo")
+local SpeedTab = CreateTab("🏃 Speed Control")
+local TeleportTab = CreateTab("🌐 V4 Teleports")
+local ExtraTab = CreateTab("📦 Extra Farming")
 
 tabs[1].Page.Visible = true
 tabs[1].Btn.TextColor3 = Color3.fromRGB(0, 210, 255)
 
--- Main Farm Controls
-AddToggle(FarmTab, "Auto Farm Level 2026", "AutoFarm")
-AddToggle(FarmTab, "Fast Attack 100% Super Fast", "FastAttack")
-AddToggle(FarmTab, "Auto Buso Haki", "AutoHaki")
-AddToggle(FarmTab, "Auto Use Skills", "UseSkills")
-CreateDynamicDropdown(FarmTab, "Weapon Type", function() return {"Melee", "Sword", "Blox Fruit", "Gun"} end, "SelectWeapon")
-
--- Material Controls
-local materialDropdown
-local function CreateSeaSelector(parent, configVar, callback)
-    local frame = Instance.new("Frame", parent)
-    frame.Size = UDim2.new(0.96, 0, 0, 26)
-    frame.BackgroundTransparency = 1
-    local layout = Instance.new("UIListLayout", frame)
-    layout.FillDirection = Enum.FillDirection.Horizontal
-    layout.Padding = UDim.new(0, 4)
-
-    for i = 1, 3 do
-        local btn = Instance.new("TextButton", frame)
-        btn.Size = UDim2.new(0.32, 0, 1, 0)
-        btn.BackgroundColor3 = _G.Config[configVar] == i and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(30, 35, 48)
-        btn.Text = "Sea " .. i
-        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 9
-        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
-
-        btn.MouseButton1Click:Connect(function()
-            _G.Config[configVar] = i
-            SaveConfig()
-            for _, child in pairs(frame:GetChildren()) do
-                if child:IsA("TextButton") then child.BackgroundColor3 = Color3.fromRGB(30, 35, 48) end
-            end
-            btn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-            if callback then callback(i) end
-        end)
-    end
-end
-
-AddToggle(MaterialTab, "Auto Farm Selected Material", "AutoMaterial")
-CreateDynamicDropdown(MaterialTab, "Target Mode", function() return {"Original Mobs", "Nearest Mobs"} end, "MaterialMode")
-CreateSeaSelector(MaterialTab, "SelectedMaterialSea", function(seaNum)
-    _G.Config.SelectMaterial = materialsBySea[seaNum][1] or ""
-    SaveConfig()
-    if materialDropdown then materialDropdown.Refresh() end
-end)
-materialDropdown = CreateDynamicDropdown(MaterialTab, "Select Material", function() 
-    return materialsBySea[_G.Config.SelectedMaterialSea] or {}
-end, "SelectMaterial")
-
--- Speed & Health Tab Setup
-AddToggle(SpeedHealthTab, "Speed Hack", "SpeedEnabled")
-AddToggle(SpeedHealthTab, "Player Health ESP", "HealthBarEnabled", function() RefreshHealthBars() end)
-
-local StyleBtn = Instance.new("TextButton", SpeedHealthTab)
-StyleBtn.Size = UDim2.new(0.96, 0, 0, 26)
-StyleBtn.BackgroundColor3 = Color3.fromRGB(35, 40, 55)
-StyleBtn.Text = "Health Bar Mode: Mode 1 (Bar)"
-StyleBtn.TextColor3 = Color3.fromRGB(0, 255, 200)
-StyleBtn.Font = Enum.Font.GothamMedium
-StyleBtn.TextSize = 9
-Instance.new("UICorner", StyleBtn).CornerRadius = UDim.new(0, 5)
-
-local StyleNames = {
-    [1] = "Mode 1: Modern Bar",
-    [2] = "Mode 2: Tag Label",
-    [3] = "Mode 3: Minimal Line",
-    [4] = "Mode 4: Heart Stats",
-    [5] = "Mode 5: Full Neon"
-}
-
-StyleBtn.MouseButton1Click:Connect(function()
-    _G.Config.CurrentHealthStyle = _G.Config.CurrentHealthStyle + 1
-    if _G.Config.CurrentHealthStyle > 5 then _G.Config.CurrentHealthStyle = 1 end
-    StyleBtn.Text = "Health Bar Mode: " .. StyleNames[_G.Config.CurrentHealthStyle]
-    SaveConfig()
-    RefreshHealthBars()
-end)
-
--- Live Radar Setup (تحديث الوقت الفعلي الحي)
+-- 1. Info Radar UI
 local function CreateStatusBox(parent, title, defaultText, color)
     local Box = Instance.new("TextLabel", parent)
     Box.Size = UDim2.new(0.96, 0, 0, 28)
@@ -527,308 +312,129 @@ local function CreateStatusBox(parent, title, defaultText, color)
     return Box
 end
 
-local FullMoonLabel = CreateStatusBox(RadarTab, "Full Moon", "Calculating...", Color3.fromRGB(255, 230, 100))
-local EliteLabel = CreateStatusBox(RadarTab, "Elite Hunter Live Timer", "Calculating...", Color3.fromRGB(255, 80, 80))
-local SBStatusLabel = CreateStatusBox(RadarTab, "Sea Beast Status", "Scanning...", Color3.fromRGB(0, 255, 170))
+local FullMoonLabel = CreateStatusBox(RadarTab, "Full Moon", "Scanning...", Color3.fromRGB(255, 230, 100))
+local SBStatusLabel = CreateStatusBox(RadarTab, "Sea Beast Radar", "Scanning...", Color3.fromRGB(0, 255, 170))
+local EliteLabel = CreateStatusBox(RadarTab, "Elite Hunter", "Scanning...", Color3.fromRGB(255, 80, 80))
+local ChaliceLabel = CreateStatusBox(RadarTab, "God's Chalice Rate", "Calculating...", Color3.fromRGB(255, 150, 0))
 
--- Teleport Setup
-local islandDropdown
-CreateSeaSelector(TeleportTab, "SelectedIslandSea", function(seaNum)
-    local firstIsland = ""
-    for name, _ in pairs(islandsBySea[seaNum]) do firstIsland = name break end
-    _G.Config.SelectIsland = firstIsland
-    SaveConfig()
-    if islandDropdown then islandDropdown.Refresh() end
-end)
-islandDropdown = CreateDynamicDropdown(TeleportTab, "Select Island", function()
-    local list = {}
-    for name, _ in pairs(islandsBySea[_G.Config.SelectedIslandSea] or {}) do table.insert(list, name) end
-    return list
-end, "SelectIsland")
-AddToggle(TeleportTab, "Start Teleport", "IsTeleporting")
-
--- Extra Farm Setup
-AddToggle(FarmingTab, "Auto Farm Chests (Fast)", "AutoChestFarm")
-AddToggle(FarmingTab, "Auto Kill Elite Hunter Boss", "AutoEliteHunter")
-AddToggle(FarmingTab, "Auto Collect Cocoa", "AutoCocoaFarm")
-AddToggle(FarmingTab, "Fruit ESP (Distance & Name)", "FruitESP")
-AddToggle(FarmingTab, "Auto Grab Fruits Nearby", "AutoGrab")
-
--- ==========================================
--- 4. المحركات وتصحيح الأخطاء (Core Engines)
--- ==========================================
-
-local currentTween = nil
-
-local function SmoothMove(targetCFrame)
-    local char = player.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-    local hrp = char.HumanoidRootPart
-    local distance = (hrp.Position - targetCFrame.Position).Magnitude
-    local speed = 320
-    
-    if currentTween then currentTween:Cancel() end
-    currentTween = TweenService:Create(hrp, TweenInfo.new(distance / speed, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-    currentTween:Play()
-    return currentTween
-end
-
--- Noclip دائم عند الحركة لمنع الموت/التعليق
-table.insert(Connections, RunService.Stepped:Connect(function()
-    if (_G.Config.AutoFarm or _G.Config.IsTeleporting or _G.Config.AutoChestFarm or _G.Config.AutoEliteHunter or _G.Config.AutoMaterial) and player.Character then
-        for _, part in pairs(player.Character:GetDescendants()) do
-            if part:IsA("BasePart") then part.CanCollide = false end
-        end
-    end
-end))
-
--- Fast Attack 100%
-local function FastAttackEngine()
-    local char = player.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-    
-    local targets = {}
-    local enemies = workspace:FindFirstChild("Enemies")
-    if enemies then
-        for _, mob in pairs(enemies:GetChildren()) do
-            local hrp = mob:FindFirstChild("HumanoidRootPart")
-            local hum = mob:FindFirstChild("Humanoid")
-            if hrp and hum and hum.Health > 0 and (char.HumanoidRootPart.Position - hrp.Position).Magnitude <= 65 then
-                table.insert(targets, hrp)
-            end
-        end
-    end
-
-    if #targets > 0 then
-        pcall(function()
-            ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net"):WaitForChild("RE/RegisterAttack"):FireServer(0.001)
-            for _, hit in pairs(targets) do
-                ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net"):WaitForChild("RE/RegisterHit"):FireServer(hit, {})
-            end
-        end)
-        local equipped = char:FindFirstChildOfClass("Tool")
-        if equipped then equipped:Activate() end
-    end
-end
-
-task.spawn(function()
-    while true do
-        if _G.Config.FastAttack then
-            FastAttackEngine()
-        end
-        task.wait(_G.Config.AttackDelay)
-    end
-end)
-
--- Health Bar Engine (All 5 Styles Working)
-local HealthGuis = {}
-
-local function ClearAllHealthBars()
-    for _, item in pairs(HealthGuis) do
-        if item.Gui then item.Gui:Destroy() end
-    end
-    HealthGuis = {}
-end
-
-local function CreateHealthBar(plr)
-    if plr == player or not _G.Config.HealthBarEnabled then return end
-
-    local function ApplyGui(char)
-        if not char then return end
-        local head = char:WaitForChild("Head", 4)
-        local humanoid = char:WaitForChild("Humanoid", 4)
-        if not head or not humanoid then return end
-
-        local bb = Instance.new("BillboardGui", ScreenGui)
-        bb.Adornee = head
-        bb.AlwaysOnTop = true
-        bb.Size = UDim2.new(0, 120, 0, 20)
-        bb.ExtentsOffset = Vector3.new(0, 2.5, 0)
-
-        local bg = Instance.new("Frame", bb)
-        bg.Size = UDim2.new(1, 0, 1, 0)
-        bg.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-        Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 4)
-
-        local fill = Instance.new("Frame", bg)
-        fill.Name = "Fill"
-        fill.Size = UDim2.new(humanoid.Health / humanoid.MaxHealth, 0, 1, 0)
-        fill.BackgroundColor3 = Color3.fromRGB(0, 230, 100)
-        Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 4)
-
-        local label = Instance.new("TextLabel", bg)
-        label.Name = "Label"
-        label.Size = UDim2.new(1, 0, 1, 0)
-        label.BackgroundTransparency = 1
-        label.TextColor3 = Color3.fromRGB(255, 255, 255)
-        label.Font = Enum.Font.GothamBold
-        label.TextSize = 9
-        label.Text = plr.DisplayName .. " [" .. math.floor(humanoid.Health) .. "]"
-
-        HealthGuis[plr] = {Gui = bb, Fill = fill, Label = label, Hum = humanoid}
-    end
-
-    if plr.Character then ApplyGui(plr.Character) end
-    table.insert(Connections, plr.CharacterAdded:Connect(ApplyGui))
-end
-
-function RefreshHealthBars()
-    ClearAllHealthBars()
-    if _G.Config.HealthBarEnabled then
-        for _, p in pairs(Players:GetPlayers()) do CreateHealthBar(p) end
-    end
-end
-
-table.insert(Connections, RunService.RenderStepped:Connect(function()
-    if _G.Config.HealthBarEnabled then
-        for plr, data in pairs(HealthGuis) do
-            if data and data.Hum and data.Hum.Parent then
-                local pct = math.clamp(data.Hum.Health / data.Hum.MaxHealth, 0, 1)
-                data.Fill.Size = UDim2.new(pct, 0, 1, 0)
-                data.Label.Text = plr.DisplayName .. " [" .. math.floor(data.Hum.Health) .. "]"
-            end
-        end
-    end
-end))
-
--- Live Radar Timers Engine (الوقت الحقيقي)
 table.insert(Connections, RunService.Heartbeat:Connect(function()
-    -- Elite Hunter Live Time
-    local gameTime = workspace.DistributedGameTime
-    local nextSpawnSecs = 600 - (gameTime % 600)
-    local mins = math.floor(nextSpawnSecs / 60)
-    local secs = math.floor(nextSpawnSecs % 60)
-    
-    local enemies = workspace:FindFirstChild("Enemies")
-    local spawnedElite = false
-    if enemies then
-        for _, e in pairs({"Deandre", "Diablo", "Urban"}) do
-            if enemies:FindFirstChild(e) then
-                EliteLabel.Text = " Elite Hunter: Spawned NOW! (" .. e .. ")"
-                spawnedElite = true
-                break
-            end
-        end
-    end
-    if not spawnedElite then
-        EliteLabel.Text = string.format(" Elite Hunter: Next Spawn in %02d:%02d", mins, secs)
-    end
-
-    -- Full Moon Real-Time
     local moonPhase = Lighting:GetAttribute("MoonPhase") or 0
-    if moonPhase == 5 then
-        FullMoonLabel.Text = " Full Moon: Active NOW!"
-    else
-        FullMoonLabel.Text = " Full Moon: Phase " .. tostring(moonPhase) .. "/5 (In Progress)"
-    end
+    if moonPhase == 5 then FullMoonLabel.Text = " Full Moon: Active NOW! 🌕"
+    else FullMoonLabel.Text = " Full Moon: Phase " .. tostring(moonPhase) .. "/5" end
+
+    local mins = math.floor(workspace.DistributedGameTime / 60)
+    ChaliceLabel.Text = " Chalice Drop Rate: " .. tostring(math.clamp(math.floor((mins / 240) * 100), 1, 100)) .. "%"
 end))
 
--- Fruit ESP & Auto Grab
-task.spawn(function()
-    while true do
-        task.wait(1)
-        if _G.Config.FruitESP or _G.Config.AutoGrab then
-            for _, v in pairs(workspace:GetChildren()) do
-                if v:IsA("Tool") or v.Name:find("Fruit") then
-                    local handle = v:FindFirstChild("Handle") or v.PrimaryPart
-                    if handle then
-                        if _G.Config.FruitESP and not handle:FindFirstChild("FruitESP_Tag") then
-                            local bb = Instance.new("BillboardGui", handle)
-                            bb.Name = "FruitESP_Tag"
-                            bb.AlwaysOnTop = true
-                            bb.Size = UDim2.new(0, 100, 0, 20)
-                            local txt = Instance.new("TextLabel", bb)
-                            txt.Size = UDim2.new(1, 0, 1, 0)
-                            txt.Text = "🍎 " .. v.Name
-                            txt.TextColor3 = Color3.fromRGB(255, 50, 50)
-                            txt.Font = Enum.Font.GothamBold
-                            txt.TextSize = 10
-                            txt.BackgroundTransparency = 1
-                        end
+-- 2. Race V2 Page
+AddToggle(V2Tab, "ESP Red Flower", "ESP_FlowerRed")
+AddToggle(V2Tab, "ESP Blue Flower", "ESP_FlowerBlue")
+AddToggle(V2Tab, "ESP Yellow Flower", "ESP_FlowerYellow")
+AddToggle(V2Tab, "ESP Alchemist NPC", "ESP_Alchemist")
+AddToggle(V2Tab, "ESP Elite Hunter Boss", "ESP_EliteHunter")
 
-                        if _G.Config.AutoGrab and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                            local dist = (player.Character.HumanoidRootPart.Position - handle.Position).Magnitude
-                            if dist < 50 then
-                                firetouchinterest(player.Character.HumanoidRootPart, handle, 0)
-                                firetouchinterest(player.Character.HumanoidRootPart, handle, 1)
-                            end
-                        end
-                    end
-                end
-            end
+-- 3. Race V3 Quests Page
+AddToggle(V3Tab, "Auto V3 Mink (Chests)", "AutoV3Mink")
+AddToggle(V3Tab, "Auto V3 Fish (Sea Beast)", "AutoV3Fish")
+AddToggle(V3Tab, "Auto V3 Human (Bosses)", "AutoV3Human")
+AddToggle(V3Tab, "Auto V3 Sky", "AutoV3Sky")
+AddToggle(V3Tab, "Auto V3 Cyborg", "AutoV3Cyborg")
+AddToggle(V3Tab, "Auto V3 Ghoul", "AutoV3Ghoul")
+
+-- 4. Race V4 Page
+AddToggle(V4Tab, "Auto Full Moon Hop", "AutoFullMoonHop")
+AddToggle(V4Tab, "Locate Mirage Island Gear", "AutoMirageIsland")
+AddToggle(V4Tab, "Auto Race V4 Trial", "AutoV4Trial")
+AddToggle(V4Tab, "Auto Win V4 PvP", "AutoV4PvP")
+
+-- 5. PVP & Combo System (تعبئة القائمة كاملة)
+AddToggle(PVPTab, "Enable PVP Target Auto Combo", "TargetPVP")
+
+local PlayerDropdown = Instance.new("TextButton", PVPTab)
+PlayerDropdown.Size = UDim2.new(0.96, 0, 0, 28)
+PlayerDropdown.BackgroundColor3 = Color3.fromRGB(28, 34, 50)
+PlayerDropdown.Text = " Target Player: None"
+PlayerDropdown.TextColor3 = Color3.fromRGB(0, 210, 255)
+PlayerDropdown.Font = Enum.Font.GothamBold
+PlayerDropdown.TextSize = 9
+Instance.new("UICorner", PlayerDropdown).CornerRadius = UDim.new(0, 5)
+
+PlayerDropdown.MouseButton1Click:Connect(function()
+    local plrs = Players:GetPlayers()
+    for i, p in ipairs(plrs) do
+        if p ~= player then
+            _G.Config.SelectedPlayer = p.Name
+            PlayerDropdown.Text = " Target Player: " .. p.Name
+            break
         end
     end
 end)
 
--- Universal Auto Farm Engine (Level / Chests / Materials / Elite)
+AddToggle(PVPTab, "Use Melee in Combo", "TargetPVP")
+AddToggle(PVPTab, "Use Sword Skills", "TargetPVP")
+AddToggle(PVPTab, "Use Fruit Skills", "TargetPVP")
+
+-- 6. Speed Control (متحكم رقمي يدوي في السرعة)
+local SpeedBox = Instance.new("TextBox", SpeedTab)
+SpeedBox.Size = UDim2.new(0.96, 0, 0, 30)
+SpeedBox.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
+SpeedBox.Text = "Set Custom Speed (Current: " .. tostring(_G.Config.CustomSpeed) .. ")"
+SpeedBox.TextColor3 = Color3.fromRGB(0, 255, 170)
+SpeedBox.Font = Enum.Font.GothamBold
+SpeedBox.TextSize = 9
+Instance.new("UICorner", SpeedBox).CornerRadius = UDim.new(0, 6)
+
+SpeedBox.FocusLost:Connect(function()
+    local val = tonumber(SpeedBox.Text)
+    if val then
+        _G.Config.CustomSpeed = val
+        SpeedBox.Text = "Set Custom Speed (Current: " .. tostring(val) .. ")"
+    end
+end)
+
+AddToggle(SpeedTab, "Enable Custom Movement Speed", "SpeedEnabled", function(active)
+    if not active then StopMovement() end
+end)
+
+-- 7. V4 Teleports
+AddToggle(TeleportTab, "TP Great Tree (Base)", "TeleportToTreeBase", function(v) if v then TweenTo(CFrame.new(2284, 443, -7168)) end end)
+AddToggle(TeleportTab, "TP Great Tree (Summit)", "TeleportToTreeSummit", function(v) if v then TweenTo(CFrame.new(2500, 2225, -7200)) end end)
+AddToggle(TeleportTab, "TP Castle on the Sea", "TeleportToCastle", function(v) if v then TweenTo(CFrame.new(-5058, 314, -3155)) end end)
+AddToggle(TeleportTab, "TP Temple of Time", "TeleportToTemple", function(v) if v then TweenTo(CFrame.new(28282, 14896, 103)) end end)
+
+-- 8. Extra Farming (تم حذف Cocoa و Elite Hunter منها بناءً على طلبك)
+AddToggle(ExtraTab, "Auto Farm Chests (Safe Speed)", "AutoChestFarm")
+AddToggle(ExtraTab, "Fruit ESP (Distance)", "FruitESP")
+AddToggle(ExtraTab, "Auto Grab Nearby Fruits", "AutoGrab")
+
+-- ==========================================
+-- 5. المحركات البرمجية (Core Logic)
+-- ==========================================
+
+-- تجميع الصناديق بتأنٍ وبشكل آمن
 task.spawn(function()
     while true do
         task.wait(0.1)
-        local char = player.Character
-        if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") and char.Humanoid.Health > 0 then
-            
-            -- Teleport Mode
-            if _G.Config.IsTeleporting then
-                local pos = islandsBySea[_G.Config.SelectedIslandSea][_G.Config.SelectIsland]
-                if pos then
-                    if (char.HumanoidRootPart.Position - pos).Magnitude > 20 then
-                        SmoothMove(CFrame.new(pos + Vector3.new(0, 30, 0)))
-                    else
-                        _G.Config.IsTeleporting = false
-                    end
-                end
-
-            -- Auto Chest Farm Mode
-            elseif _G.Config.AutoChestFarm then
-                for _, obj in pairs(workspace:GetChildren()) do
-                    if obj.Name:find("Chest") and obj:IsA("Part") then
-                        SmoothMove(obj.CFrame)
-                        task.wait(0.2)
-                        break
-                    end
-                end
-
-            -- Auto Material Farm Mode
-            elseif _G.Config.AutoMaterial then
-                local mobTargetName = materialToMob[_G.Config.SelectMaterial]
-                local targetMob = nil
-                local enemies = workspace:FindFirstChild("Enemies")
-
-                if enemies then
-                    for _, mob in pairs(enemies:GetChildren()) do
-                        if mob.Name == mobTargetName and mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 then
-                            targetMob = mob
-                            break
+        if _G.Config.AutoChestFarm or _G.Config.AutoV3Mink then
+            pcall(function()
+                local char = player.Character
+                if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+                
+                for _, obj in pairs(workspace:GetDescendants()) do
+                    if (_G.Config.AutoChestFarm or _G.Config.AutoV3Mink) and obj.Name:find("Chest") and (obj:IsA("Part") or obj:IsA("Model")) then
+                        local cf = obj:IsA("Model") and (obj.PrimaryPart and obj.PrimaryPart.CFrame or obj:GetAttribute("CFrame")) or obj.CFrame
+                        if cf then
+                            TweenTo(cf, _G.Config.ChestSpeed)
+                            task.wait(0.5)
                         end
                     end
                 end
-
-                if targetMob and targetMob:FindFirstChild("HumanoidRootPart") then
-                    SmoothMove(targetMob.HumanoidRootPart.CFrame * CFrame.new(0, 6, 2))
-                end
-
-            -- Auto Farm Level Mode
-            elseif _G.Config.AutoFarm then
-                local enemies = workspace:FindFirstChild("Enemies")
-                local targetMob = nil
-                if enemies then
-                    for _, mob in pairs(enemies:GetChildren()) do
-                        if mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 then
-                            targetMob = mob
-                            break
-                        end
-                    end
-                end
-
-                if targetMob and targetMob:FindFirstChild("HumanoidRootPart") then
-                    SmoothMove(targetMob.HumanoidRootPart.CFrame * CFrame.new(0, 6, 2))
-                end
-            end
+            end)
         end
     end
 end)
 
--- Anti-AFK Engine
+-- Anti-AFK
 player.Idled:Connect(function()
     if _G.Config.AntiAFK then
         VirtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
@@ -837,13 +443,13 @@ player.Idled:Connect(function()
     end
 end)
 
--- Cleanup Engine عند الخروج من زرر (X)
+-- التنظيف عند إغلاق القائمة
 getgenv().WseemHubCleanUp = function()
     for _, conn in ipairs(Connections) do
         if conn then conn:Disconnect() end
     end
-    ClearAllHealthBars()
-    for _, v in pairs(ESPFolder:GetChildren()) do v:Destroy() end
+    StopMovement()
+    if ESPFolder then ESPFolder:Destroy() end
     if ScreenGui then ScreenGui:Destroy() end
     getgenv().WseemHubCleanUp = nil
 end
