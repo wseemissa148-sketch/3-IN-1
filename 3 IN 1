@@ -1,6 +1,6 @@
 -- ==========================================
--- WSEEM ALL-IN-ONE HUB | BLOX FRUITS
--- Compatible with all Executors & Devices
+-- WSEEM ALL-IN-ONE HUB | BLOX FRUITS (AUGUST 2026 UPDATE)
+-- Compatible with all Executors & Devices (Xeno, Mobile, PC)
 -- Ready for GitHub
 -- ==========================================
 
@@ -40,7 +40,7 @@ _G.Config = {
     AutoMaterial = false,
     MaterialMode = "Original Mobs",
     SelectMaterial = "Bones",
-    SelectedMaterialSea = 1,
+    SelectedMaterialSea = 3,
 
     -- PVP & Combo Settings
     TargetPVP = false,
@@ -60,8 +60,8 @@ _G.Config = {
     },
 
     -- Teleport Settings
-    SelectedIslandSea = 1,
-    SelectIsland = "Cafe",
+    SelectedIslandSea = 3,
+    SelectIsland = "Tiki Outpost",
     IsTeleporting = false,
     TeleportToTreeBase = false,
     TeleportToTreeSummit = false,
@@ -134,7 +134,7 @@ end
 LoadConfig()
 
 -- ==========================================
--- بيانات الجزر والمواد
+-- بيانات الجزر والمواد (محدثة أغسطس 2026)
 -- ==========================================
 local islandsBySea = {
     [1] = {
@@ -167,14 +167,16 @@ local islandsBySea = {
         ["Great Tree"] = Vector3.new(2250, 20, -7200),
         ["Floating Turtle"] = Vector3.new(-12450, 330, -7500),
         ["Haunted Castle"] = Vector3.new(-9500, 140, 5500),
-        ["Sea of Treats"] = Vector3.new(-2000, 50, -12000)
+        ["Sea of Treats"] = Vector3.new(-2000, 50, -12000),
+        ["Tiki Outpost"] = Vector3.new(-16200, 45, 400),
+        ["Temple of Time"] = Vector3.new(28282, 14896, 103)
     }
 }
 
 local materialsBySea = {
     [1] = {"Leather", "Angel Wings", "Fish Tail", "Magma Ore", "Vampire Fang", "Mutant Tooth"},
     [2] = {"Ectoplasm", "Radioactive Material", "Mystic Droplet", "Magma Ore", "Vampire Fang", "Snow Trooper"},
-    [3] = {"Bones", "Dragon Scale", "Mini Tusk", "Conjured Cocoa", "Demonic Feather", "Fool's Gold", "Dragon Tooth"}
+    [3] = {"Bones", "Dragon Scale", "Mini Tusk", "Conjured Cocoa", "Demonic Feather", "Fool's Gold", "Dragon Tooth", "Leviathan Scale", "Electric Spark"}
 }
 
 local materialToMob = {
@@ -183,7 +185,7 @@ local materialToMob = {
     ["Ectoplasm"] = "Ship Officer", ["Radioactive Material"] = "Factory Staff", ["Mystic Droplet"] = "Water Fighter",
     ["Snow Trooper"] = "Snow Trooper", ["Bones"] = "Reborn Skeleton", ["Dragon Scale"] = "Dragon Crew Warrior",
     ["Mini Tusk"] = "Mythological Pirate", ["Conjured Cocoa"] = "Cocoa Warrior", ["Demonic Feather"] = "Demonic Soul",
-    ["Fool's Gold"] = "Isle Outlaw", ["Dragon Tooth"] = "Isle Champion"
+    ["Fool's Gold"] = "Isle Outlaw", ["Dragon Tooth"] = "Isle Champion", ["Leviathan Scale"] = "Leviathan", ["Electric Spark"] = "Sun-kissed Warrior"
 }
 
 -- ==========================================
@@ -1171,7 +1173,7 @@ task.spawn(function()
     end
 end)
 
--- Main Loop (Farming, Teleport, PVP)
+-- Main Loop (Farming, Teleport, PVP, Material)
 task.spawn(function()
     while true do
         task.wait(0.1)
@@ -1202,6 +1204,30 @@ task.spawn(function()
                             if mHum and mHum.Health > 0 then
                                 targetMob = mob
                                 break
+                            end
+                        end
+                    end
+
+                    if targetMob and targetMob:FindFirstChild("HumanoidRootPart") then
+                        local mobHrp = targetMob.HumanoidRootPart
+                        local farmPos = mobHrp.CFrame * CFrame.new(0, 7, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+                        SmoothMove(farmPos)
+                    end
+
+                elseif _G.Config.AutoMaterial and _G.Config.SelectMaterial ~= "" then
+                    EquipSpecificWeapon(_G.Config.SelectWeapon)
+                    local targetMobName = materialToMob[_G.Config.SelectMaterial]
+                    local enemies = workspace:FindFirstChild("Enemies")
+                    local targetMob = nil
+
+                    if enemies and targetMobName then
+                        for _, mob in pairs(enemies:GetChildren()) do
+                            if mob.Name:find(targetMobName) then
+                                local mHum = mob:FindFirstChild("Humanoid")
+                                if mHum and mHum.Health > 0 then
+                                    targetMob = mob
+                                    break
+                                end
                             end
                         end
                     end
